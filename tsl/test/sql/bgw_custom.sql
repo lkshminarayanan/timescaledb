@@ -118,13 +118,15 @@ SELECT delete_job(1000);
 \c :TEST_DBNAME :ROLE_DEFAULT_PERM_USER
 -- background workers are disabled, so the job will not run --
 SELECT add_job( proc=>'custom_func',
-     schedule_interval=>'1h', initial_start =>'2018-01-01 10:00:00-05');
+     schedule_interval=>'1h', initial_start =>'2018-01-01 10:00:00-05') AS job_id_1 \gset
 
 SELECT job_id, next_start, scheduled, schedule_interval
 FROM timescaledb_information.jobs WHERE job_id > 1000;
 \x
 SELECT * FROM timescaledb_information.job_stats WHERE job_id > 1000;
 \x
+
+SELECT delete_job(:job_id_1);
 
 -- tests for #3545
 CREATE FUNCTION wait_for_job_to_run(job_param_id INTEGER, expected_runs INTEGER, spins INTEGER=:TEST_SPINWAIT_ITERS) RETURNS BOOLEAN LANGUAGE PLPGSQL AS
@@ -275,6 +277,8 @@ where hypertable_id = (select id from _timescaledb_catalog.hypertable
                        where table_name = 'conditions')
 order by id;
 
+-- Drop the compression job
+SELECT delete_job(:job_id_4);
 
 -- Decompress chunks before create the cagg
 SELECT decompress_chunk(c) FROM show_chunks('conditions') c;
@@ -318,6 +322,10 @@ DROP MATERIALIZED VIEW conditions_summary_daily;
 
 SELECT id, proc_name, hypertable_id
 FROM _timescaledb_config.bgw_job WHERE id = :job_id_5;
+
+-- Cleanup
+DROP TABLE conditions;
+DROP TABLE custom_log;
 
 -- Stop Background Workers
 SELECT _timescaledb_internal.stop_background_workers();
@@ -532,9 +540,6 @@ BEGIN
 END
 $$ LANGUAGE PLPGSQL;
 
-create table jsonb_values (j jsonb, i int);
-insert into jsonb_values values ('{"refresh_after":"2 weeks"}', 1), ('{"compress_after":"2 weeks"}', 2), ('{"drop_after":"2 weeks"}', 3);
-
 CREATE AGGREGATE sum_jsb (jsonb)
 (
     sfunc = jsonb_add,
@@ -544,6 +549,9 @@ CREATE AGGREGATE sum_jsb (jsonb)
 
 -- for test coverage, check unsupported aggregate type
 select add_job('test_proc_with_check', '5 secs', config => '{}', check_config => 'sum_jsb'::regproc);
+
+-- Cleanup jobs
+TRUNCATE _timescaledb_config.bgw_job CASCADE;
 
 -- github issue 4610
 CREATE TABLE sensor_data
