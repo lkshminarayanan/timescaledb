@@ -907,8 +907,8 @@ ts_decompress_chunk_generate_paths(PlannerInfo *root, RelOptInfo *chunk_rel, Hyp
 #else
 	/* remove the compressed_rel from the simple_rel_array to prevent it from being referenced again
 	 */
-	root->simple_rel_array[compressed_rel->relid] = NULL;
-	pfree(compressed_rel);
+	// root->simple_rel_array[compressed_rel->relid] = NULL;
+	// pfree(compressed_rel);
 #endif
 
 	/* We should never get in the situation with no viable paths. */
